@@ -1,0 +1,14 @@
+{
+  "title": "家乡各景点月客流量",
+  "unit": "人次",
+  "source": "家乡文旅导览模拟数据（课堂自主实践案例，非真实数据）",
+  "updatedAt": "2026-09-01",
+  "spots": [
+    { "name": "古城墙", "visitors": 12800 },
+    { "name": "文庙", "visitors": 7600 },
+    { "name": "青云山", "visitors": 15200 },
+    { "name": "烈士纪念馆", "visitors": 5400 },
+    { "name": "老街", "visitors": 18900 },
+    { "name": "滨湖湿地公园", "visitors": 13600 }
+  ]
+}
