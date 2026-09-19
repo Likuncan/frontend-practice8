@@ -1,0 +1,73 @@
+/* ==========================================================
+   迷你版校园信息中心 - 自定义样式
+   引入顺序：本文件在 Bootstrap 5.3.3 之后加载，可覆盖其样式
+   ========================================================== */
+
+/* 固定导航栏会遮挡内容，给 body 留出导航高度 */
+body {
+  padding-top: 56px;
+}
+
+/* 让页面至少占满一屏，页脚保持在底部 */
+body {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+
+main {
+  flex: 1 0 auto;
+}
+
+/* 锚点跳转时为固定导航栏预留偏移，避免标题被遮挡 */
+section[id],
+header[id] {
+  scroll-margin-top: 70px;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+/* ---------- 首页横幅 ---------- */
+.hero {
+  min-height: 320px;
+  background: linear-gradient(135deg, #0d6efd 0%, #0a3d91 100%);
+}
+
+/* ---------- 卡片悬浮反馈，提示可点击 ---------- */
+.card {
+  transition: transform 0.15s ease-in-out, box-shadow 0.15s ease-in-out;
+}
+
+.card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15) !important;
+}
+
+/* ---------- 模块占位区：虚线框明确各模块位置 ---------- */
+.module-placeholder {
+  border: 2px dashed #adb5bd;
+  border-radius: 0.75rem;
+  background-color: #f8f9fa;
+  padding: 1.5rem;
+}
+
+.module-placeholder h2 {
+  color: #495057;
+}
+
+/* ---------- 手机端（375px 附近）微调 ---------- */
+@media (max-width: 575.98px) {
+  .hero {
+    min-height: 240px;
+  }
+
+  .hero .display-5 {
+    font-size: 1.5rem;
+  }
+
+  .module-placeholder {
+    padding: 1rem;
+  }
+}
