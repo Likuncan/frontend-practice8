@@ -66,7 +66,7 @@
             <div class="card-body d-flex flex-column">
               <span class="badge text-bg-success mb-3 align-self-start">模块二</span>
               <h3 class="h5 card-title">自习室查询</h3>
-              <p class="card-text flex-grow-1">按楼层与开放状态筛选自习室列表（第二步实现）。</p>
+              <p class="card-text flex-grow-1">按楼层与开放状态即时筛选自习室列表。</p>
               <a href="#study" class="btn btn-outline-success btn-sm mt-2">前往自习室</a>
             </div>
           </div>
@@ -77,7 +77,7 @@
             <div class="card-body d-flex flex-column">
               <span class="badge text-bg-info mb-3 align-self-start">模块三</span>
               <h3 class="h5 card-title">使用统计</h3>
-              <p class="card-text flex-grow-1">读取 data.json，渲染各自习室使用量柱状图（第二步实现）。</p>
+              <p class="card-text flex-grow-1">读取 data.json，渲染各自习室使用量柱状图。</p>
               <a href="#stats" class="btn btn-outline-info btn-sm mt-2">前往统计</a>
             </div>
           </div>
@@ -99,18 +99,46 @@
 
     <hr class="my-5">
 
-    <!-- ========== 自习室区块（占位，第二步填充筛选交互） ========== -->
-    <section id="study" class="module-placeholder">
+    <!-- ========== 自习室区块：楼层 / 开放状态筛选 ========== -->
+    <section id="study">
       <h2 class="h4">自习室查询</h2>
-      <p class="text-muted">占位文字：此处为自习室查询模块位置。第二步将复用课堂五的筛选模式，实现按楼层／开放状态过滤，数据写死在 JS 数组中。</p>
+      <p class="text-muted">选择楼层与开放状态，列表即时更新（复用课堂五的筛选模式）。</p>
+
+      <div class="row g-3 mb-3">
+        <div class="col-12 col-sm-6 col-md-3">
+          <label for="floorFilter" class="form-label">楼层</label>
+          <select id="floorFilter" class="form-select">
+            <option value="all" selected>全部楼层</option>
+            <option value="1">1 楼</option>
+            <option value="2">2 楼</option>
+            <option value="3">3 楼</option>
+            <option value="4">4 楼</option>
+          </select>
+        </div>
+        <div class="col-12 col-sm-6 col-md-3">
+          <label for="statusFilter" class="form-label">开放状态</label>
+          <select id="statusFilter" class="form-select">
+            <option value="all" selected>全部状态</option>
+            <option value="open">开放中</option>
+            <option value="closed">已关闭</option>
+          </select>
+        </div>
+        <div class="col-12 col-md-6 d-flex align-items-end justify-content-md-end">
+          <span id="resultCount" class="text-muted" aria-live="polite"></span>
+        </div>
+      </div>
+
+      <div id="roomList" class="row g-3"></div>
     </section>
 
     <hr class="my-5">
 
-    <!-- ========== 统计区块（占位，第二步填充图表） ========== -->
-    <section id="stats" class="module-placeholder">
+    <!-- ========== 统计区块：data.json + ECharts 柱状图 ========== -->
+    <section id="stats">
       <h2 class="h4">使用统计</h2>
-      <p class="text-muted">占位文字：此处为使用统计模块位置。第二步将复用课堂六的图表代码，加载 data/data.json 渲染各自习室使用量柱状图。</p>
+      <div id="chartNotice" class="alert d-none mb-3" role="alert"></div>
+      <div id="usageChart" style="width: 100%; height: 420px;"></div>
+      <p id="chartSource" class="text-muted small mt-2 mb-0">数据来源：data/data.json</p>
     </section>
 
     <hr class="my-5">
@@ -125,7 +153,7 @@
 
   <footer class="bg-dark text-white-50 text-center py-3 mt-auto">
     <div class="container">
-      <small>迷你版校园信息中心 · 软件开发综合实践 · 第六部分案例复现（第一步：整合骨架）</small>
+      <small>迷你版校园信息中心 · 软件开发综合实践 · 第六部分案例复现（第二步：交互与图表）</small>
     </div>
   </footer>
 
@@ -133,5 +161,9 @@
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"
           integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz"
           crossorigin="anonymous"></script>
+  <!-- ECharts 5.5.1：库在前，版本号固定 -->
+  <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.1/dist/echarts.min.js"></script>
+  <!-- 自己的交互逻辑：在所有库之后加载 -->
+  <script src="js/app.js"></script>
 </body>
 </html>
