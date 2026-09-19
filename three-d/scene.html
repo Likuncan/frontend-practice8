@@ -1,0 +1,374 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>校园三维导览 - 迷你版校园信息中心</title>
+  <!-- 与首页同版本 Bootstrap 5.3.3，保持视觉统一 -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css"
+        rel="stylesheet"
+        integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH"
+        crossorigin="anonymous">
+  <style>
+    html, body { height: 100%; margin: 0; overflow: hidden; }
+    #sceneCanvas { display: block; width: 100%; height: 100%; }
+
+    /* 顶部信息与返回按钮 */
+    .scene-toolbar {
+      position: fixed;
+      top: 12px;
+      left: 12px;
+      right: 12px;
+      z-index: 10;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 8px;
+      pointer-events: none; /* 容器不挡鼠标，按钮单独放开 */
+    }
+    .scene-toolbar > * { pointer-events: auto; }
+    .scene-title {
+      background: rgba(33, 37, 41, 0.75);
+      color: #fff;
+      border-radius: 0.5rem;
+      padding: 0.35rem 0.9rem;
+      font-size: 0.95rem;
+    }
+
+    /* 底部操作提示 */
+    .scene-hint {
+      position: fixed;
+      bottom: 12px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 10;
+      background: rgba(33, 37, 41, 0.75);
+      color: #fff;
+      border-radius: 0.5rem;
+      padding: 0.35rem 0.9rem;
+      font-size: 0.85rem;
+      white-space: nowrap;
+      max-width: calc(100vw - 24px);
+    }
+    @media (max-width: 575.98px) {
+      .scene-title { display: none; }
+      .scene-hint { font-size: 0.75rem; white-space: normal; text-align: center; }
+    }
+
+    /* 加载中 / 失败提示覆盖层 */
+    #sceneStatus {
+      position: fixed;
+      inset: 0;
+      z-index: 20;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: #e9ecef;
+      padding: 1rem;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="scene-toolbar">
+    <a href="../index.html" class="btn btn-light btn-sm shadow-sm">&larr; 返回首页</a>
+    <span class="scene-title">校园三维导览</span>
+  </div>
+
+  <canvas id="sceneCanvas"></canvas>
+
+  <div class="scene-hint">鼠标左键拖动旋转 · 滚轮缩放 · 右键平移（手机上单指旋转、双指缩放）</div>
+
+  <!-- 初始为“加载中”，模块加载失败则切换为断网/错误提示 -->
+  <div id="sceneStatus">
+    <div class="text-center">
+      <div class="spinner-border text-primary mb-3" role="alert" aria-hidden="true"></div>
+      <p class="text-muted mb-0">三维场景加载中…</p>
+    </div>
+  </div>
+
+  <!-- Three.js 0.160.0：ES Module + importmap，版本号固定，不用 latest -->
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+    }
+  }
+  </script>
+
+  <!-- CDN 加载失败（断网）兜底：8 秒内场景未就绪则给出明确提示 -->
+  <script>
+    let threeReady = false;
+    window.markThreeReady = function () { threeReady = true; };
+    function showLoadError() {
+      var box = document.getElementById('sceneStatus');
+      box.innerHTML =
+        '<div class="alert alert-danger mb-0" style="max-width:420px;" role="alert">' +
+          '<strong>三维场景加载失败。</strong><br>' +
+          'Three.js 资源未能加载，可能处于断网状态，请检查网络后刷新页面。<br>' +
+          '<a class="btn btn-outline-danger btn-sm mt-3" href="../index.html">返回首页</a>' +
+        '</div>';
+    }
+    setTimeout(function () {
+      if (!threeReady) { showLoadError(); }
+    }, 8000);
+    window.addEventListener('error', function (event) {
+      if (/module script failed|Failed to fetch|dynamically imported module/i.test(event.message || '')) {
+        showLoadError();
+      }
+    });
+  </script>
+
+  <script type="module">
+    import * as THREE from 'three';
+    import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+    window.markThreeReady();
+
+    /* ---------- 基础三件套 ---------- */
+    const canvas = document.getElementById('sceneCanvas');
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0xcfe8ff);       // 天空淡蓝
+    scene.fog = new THREE.Fog(0xcfe8ff, 70, 150);
+
+    const camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 300);
+    camera.position.set(26, 20, 30);
+
+    const renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    renderer.outputColorSpace = THREE.SRGBColorSpace;
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 1.0;
+
+    /* ---------- 灯光：环境光 + 半球光 + 带阴影的方向光（太阳光） ---------- */
+    scene.add(new THREE.AmbientLight(0xffffff, 0.35));
+    scene.add(new THREE.HemisphereLight(0xddeeff, 0x6b8f4e, 0.45));
+
+    const sun = new THREE.DirectionalLight(0xffffff, 1.6);
+    sun.position.set(24, 32, 18);
+    sun.castShadow = true;
+    sun.shadow.mapSize.set(2048, 2048);
+    sun.shadow.camera.left = -45;
+    sun.shadow.camera.right = 45;
+    sun.shadow.camera.top = 45;
+    sun.shadow.camera.bottom = -45;
+    sun.shadow.camera.near = 1;
+    sun.shadow.camera.far = 100;
+    scene.add(sun);
+
+    /* ---------- 地面（草坪） ---------- */
+    const ground = new THREE.Mesh(
+      new THREE.PlaneGeometry(90, 90),
+      new THREE.MeshStandardMaterial({ color: 0x7cb342 })
+    );
+    ground.rotation.x = -Math.PI / 2;
+    ground.receiveShadow = true;
+    scene.add(ground);
+
+    /* ---------- 道路：浅色十字平面 ---------- */
+    function addRoad(width, length, x, z, rotation) {
+      const road = new THREE.Mesh(
+        new THREE.PlaneGeometry(width, length),
+        new THREE.MeshStandardMaterial({ color: 0xd7ccc8 })
+      );
+      road.rotation.x = -Math.PI / 2;
+      road.rotation.z = rotation || 0;
+      road.position.set(x, 0.02, z);
+      road.receiveShadow = true;
+      scene.add(road);
+    }
+    addRoad(4, 90, 0, 0, 0);
+    addRoad(90, 4, 0, 0, 0);
+
+    /* ---------- 文字标签（Canvas 纹理 Sprite，无需外部资源） ---------- */
+    function makeLabel(text) {
+      const cvs = document.createElement('canvas');
+      const ctx = cvs.getContext('2d');
+      const fontSize = 44;
+      ctx.font = 'bold ' + fontSize + 'px sans-serif';
+      cvs.width = Math.ceil(ctx.measureText(text).width) + 28;
+      cvs.height = fontSize + 20;
+
+      ctx.font = 'bold ' + fontSize + 'px sans-serif';
+      ctx.fillStyle = 'rgba(255,255,255,0.85)';
+      ctx.fillRect(0, 0, cvs.width, cvs.height);
+      ctx.strokeStyle = 'rgba(0,0,0,0.25)';
+      ctx.strokeRect(1, 1, cvs.width - 2, cvs.height - 2);
+      ctx.fillStyle = '#212529';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(text, 14, cvs.height / 2);
+
+      const sprite = new THREE.Sprite(new THREE.SpriteMaterial({
+        map: new THREE.CanvasTexture(cvs),
+        depthTest: false
+      }));
+      const scale = 0.012;
+      sprite.scale.set(cvs.width * scale, cvs.height * scale, 1);
+      return sprite;
+    }
+
+    /* ---------- 通用建筑：盒子 + 顶部标签 ---------- */
+    function addBuilding(x, z, w, h, d, color, name) {
+      const mesh = new THREE.Mesh(
+        new THREE.BoxGeometry(w, h, d),
+        new THREE.MeshStandardMaterial({ color: color })
+      );
+      mesh.position.set(x, h / 2, z);
+      mesh.castShadow = true;
+      mesh.receiveShadow = true;
+      scene.add(mesh);
+
+      const label = makeLabel(name);
+      label.position.set(x, h + 1.4, z);
+      scene.add(label);
+      return mesh;
+    }
+
+    /* ---------- 校园地标布局 ---------- */
+    // 教学楼群
+    addBuilding(-14, -10, 8, 6, 7, 0x90caf9, '第一教学楼');
+    addBuilding(-14, 1, 8, 5, 7, 0x90caf9, '第二教学楼');
+    // 图书馆（最高建筑之一）
+    addBuilding(4, -12, 10, 9, 8, 0xffcc80, '图书馆');
+    // 体育馆（扁宽）
+    addBuilding(-4, 12, 12, 3.5, 7, 0xa5d6a7, '体育馆');
+
+    // 钟楼（圆柱形塔身 + 圆锥尖顶）—— 校园地标
+    const tower = new THREE.Group();
+    const towerBody = new THREE.Mesh(
+      new THREE.CylinderGeometry(2, 2.4, 11, 24),
+      new THREE.MeshStandardMaterial({ color: 0xef9a9a })
+    );
+    towerBody.position.y = 5.5;
+    towerBody.castShadow = true;
+    towerBody.receiveShadow = true;
+    tower.add(towerBody);
+    const towerRoof = new THREE.Mesh(
+      new THREE.ConeGeometry(2.8, 4, 24),
+      new THREE.MeshStandardMaterial({ color: 0x6d4c41 })
+    );
+    towerRoof.position.y = 13;
+    towerRoof.castShadow = true;
+    tower.add(towerRoof);
+    tower.position.set(12, 0, 8);
+    scene.add(tower);
+    const towerLabel = makeLabel('钟楼');
+    towerLabel.position.set(12, 16, 8);
+    scene.add(towerLabel);
+
+    // 操场：环形跑道（橙色外圈 + 绿色内场）
+    const field = new THREE.Mesh(
+      new THREE.PlaneGeometry(10, 6),
+      new THREE.MeshStandardMaterial({ color: 0x558b2f })
+    );
+    field.rotation.x = -Math.PI / 2;
+    field.position.set(16, 0.03, -14);
+    field.receiveShadow = true;
+    scene.add(field);
+    const track = new THREE.Mesh(
+      new THREE.RingGeometry(3.6, 5.2, 48),
+      new THREE.MeshStandardMaterial({ color: 0xef6c00 })
+    );
+    track.rotation.x = -Math.PI / 2;
+    track.scale.set(1.5, 1, 1);
+    track.position.set(16, 0.04, -14);
+    track.receiveShadow = true;
+    scene.add(track);
+    const fieldLabel = makeLabel('操场');
+    fieldLabel.position.set(16, 3, -14);
+    scene.add(fieldLabel);
+
+    // 校门：门柱 + 横梁（位于南侧道路尽头）
+    const gateMat = new THREE.MeshStandardMaterial({ color: 0x8d6e63 });
+    [-4, 4].forEach(function (gx) {
+      const pillar = new THREE.Mesh(new THREE.BoxGeometry(1.2, 6, 1.2), gateMat);
+      pillar.position.set(gx, 3, 22);
+      pillar.castShadow = true;
+      scene.add(pillar);
+    });
+    const beam = new THREE.Mesh(new THREE.BoxGeometry(9.2, 1.4, 1.2), gateMat);
+    beam.position.set(0, 6.3, 22);
+    beam.castShadow = true;
+    scene.add(beam);
+    const gateLabel = makeLabel('校门');
+    gateLabel.position.set(0, 8.5, 22);
+    scene.add(gateLabel);
+
+    // 旗杆与红旗
+    const pole = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.12, 0.12, 9, 12),
+      new THREE.MeshStandardMaterial({ color: 0xeeeeee, metalness: 0.6, roughness: 0.3 })
+    );
+    pole.position.set(0, 4.5, 4);
+    pole.castShadow = true;
+    scene.add(pole);
+    const flag = new THREE.Mesh(
+      new THREE.PlaneGeometry(2.6, 1.6),
+      new THREE.MeshStandardMaterial({ color: 0xe53935, side: THREE.DoubleSide })
+    );
+    flag.position.set(1.4, 7.8, 4);
+    scene.add(flag);
+
+    /* ---------- 树木：树干 + 树冠，散布在道路两侧 ---------- */
+    function addTree(x, z, scale) {
+      const s = scale || 1;
+      const tree = new THREE.Group();
+      const trunk = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.25 * s, 0.35 * s, 1.6 * s, 10),
+        new THREE.MeshStandardMaterial({ color: 0x795548 })
+      );
+      trunk.position.y = 0.8 * s;
+      trunk.castShadow = true;
+      tree.add(trunk);
+      const crown = new THREE.Mesh(
+        new THREE.SphereGeometry(1.3 * s, 16, 12),
+        new THREE.MeshStandardMaterial({ color: 0x2e7d32 })
+      );
+      crown.position.y = 2.4 * s;
+      crown.castShadow = true;
+      tree.add(crown);
+      tree.position.set(x, 0, z);
+      scene.add(tree);
+    }
+    [
+      [-8, -4], [8, -4], [-8, 6], [8, 4], [-20, -20], [22, 4],
+      [-22, 8], [6, 18], [-6, -22], [22, -24], [-24, -4], [24, 14]
+    ].forEach(function (p) { addTree(p[0], p[1], 1); });
+
+    /* ---------- 轨道控制器：可旋转 / 缩放 / 平移，不能钻到地下 ---------- */
+    const controls = new OrbitControls(camera, renderer.domElement);
+    controls.target.set(0, 2, 0);
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.06;
+    controls.minDistance = 8;
+    controls.maxDistance = 70;
+    controls.maxPolarAngle = Math.PI / 2 - 0.03;
+    controls.update();
+
+    /* ---------- 响应式：窗口尺寸变化时同步相机与渲染器 ---------- */
+    window.addEventListener('resize', function () {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+
+    /* ---------- 渲染循环 ---------- */
+    const clock = new THREE.Clock();
+    function animate() {
+      requestAnimationFrame(animate);
+      const t = clock.getElapsedTime();
+      // 旗帜轻微飘动
+      flag.rotation.y = Math.sin(t * 3) * 0.15;
+      controls.update();
+      renderer.render(scene, camera);
+    }
+
+    // 场景就绪：隐藏加载遮罩并开始渲染
+    document.getElementById('sceneStatus').style.display = 'none';
+    animate();
+  </script>
+</body>
+</html>
